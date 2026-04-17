@@ -5,7 +5,7 @@
 #include "math.h"
 
 // ==================== 你的底盘实测参数，必须修改！====================
-#define MECANUM_R       0.03f   // 麦轮半径，单位m（60mm麦轮=0.03）
+#define MECANUM_R       0.04f   // 麦轮半径，单位m（80mm麦轮=0.04）
 #define MECANUM_L       0.1f    // 半轴距：前后轮轴间距的一半，单位m
 #define MECANUM_W       0.08f   // 半轮距：左右轮中心间距的一半，单位m
 #define PPR             1560.0f // 编码器单圈总脉冲数=线数*减速比*4倍频

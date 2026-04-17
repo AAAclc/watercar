@@ -66,18 +66,35 @@ void Encoder_OverflowHandler(TIM_HandleTypeDef *htim)
  * @param  wheel_id: 轮子编号
  * @retval 32位总计数
  */
+// int32_t Encoder_GetCnt(uint8_t wheel_id)
+// {
+//     switch(wheel_id)
+//     {
+//         case WHEEL_LF: return encoder_total[WHEEL_LF] + __HAL_TIM_GET_COUNTER(&htim2);
+//         case WHEEL_RF: return encoder_total[WHEEL_RF] + __HAL_TIM_GET_COUNTER(&htim3);
+//         case WHEEL_LB: return encoder_total[WHEEL_LB] + __HAL_TIM_GET_COUNTER(&htim4);
+//         case WHEEL_RB: return encoder_total[WHEEL_RB] + __HAL_TIM_GET_COUNTER(&htim5);
+//         default: return 0;
+//     }
+// }
 int32_t Encoder_GetCnt(uint8_t wheel_id)
 {
+    int32_t cnt = 0;
     switch(wheel_id)
     {
-        case WHEEL_LF: return encoder_total[WHEEL_LF] + __HAL_TIM_GET_COUNTER(&htim2);
-        case WHEEL_RF: return encoder_total[WHEEL_RF] + __HAL_TIM_GET_COUNTER(&htim3);
-        case WHEEL_LB: return encoder_total[WHEEL_LB] + __HAL_TIM_GET_COUNTER(&htim4);
-        case WHEEL_RB: return encoder_total[WHEEL_RB] + __HAL_TIM_GET_COUNTER(&htim5);
+        case WHEEL_LF: 
+            cnt = encoder_total[WHEEL_LF] + __HAL_TIM_GET_COUNTER(&htim2);
+            return -cnt; // 左前计数取反
+        case WHEEL_RF: 
+            cnt = encoder_total[WHEEL_RF] + __HAL_TIM_GET_COUNTER(&htim3);
+            return -cnt; // 右前计数取反
+        case WHEEL_LB: 
+            return encoder_total[WHEEL_LB] + __HAL_TIM_GET_COUNTER(&htim4);
+        case WHEEL_RB: 
+            return encoder_total[WHEEL_RB] + __HAL_TIM_GET_COUNTER(&htim5);
         default: return 0;
     }
 }
-
 /**
  * @brief  获取轮子转速rpm
  * @param  wheel_id: 轮子编号

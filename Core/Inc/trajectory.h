@@ -23,7 +23,7 @@ typedef enum
 
 // 对外接口声明
 void Trajectory_Init(void);
-void Trajectory_SetTarget(float target_x, float target_y);
+void Trajectory_SetTarget(float tx, float ty);
 void Trajectory_Stop(void);
 void Trajectory_ResetOrigin(void);
 void Trajectory_ControlLoop(void);

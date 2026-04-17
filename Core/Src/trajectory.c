@@ -17,8 +17,8 @@ static IncPID_Typedef speed_pid[4];
 void Trajectory_Init(void)
 {
     // 位置环PID初始化（输出：m/s）
-    PosPID_Init(&x_pid, 4.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);
-    PosPID_Init(&y_pid, 4.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);
+    PosPID_Init(&x_pid, 5.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);
+    PosPID_Init(&y_pid, 5.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);  
     // 航向环PID初始化（输出：rad/s）
     PosPID_Init(&theta_pid, 5.0f, 0.0f, 0.1f, MAX_OMEGA, MAX_OMEGA, -MAX_OMEGA);
     // 速度环PID初始化（输出：PWM值）
@@ -61,11 +61,11 @@ static float Speed_Plan(float distance)
  * @param  target_x: 目标x坐标，单位m
  * @param  target_y: 目标y坐标，单位m
  */
-void Trajectory_SetTarget(float target_x, float target_y)
+void Trajectory_SetTarget(float tx, float ty)
 {
     // 更新目标坐标
-    target_x = target_x;
-    target_y = target_y;
+    target_x = tx;
+    target_y = ty;
     // 复位PID积分
     PID_Reset(NULL, &x_pid);
     PID_Reset(NULL, &y_pid);
@@ -103,6 +103,11 @@ void Trajectory_ResetOrigin(void)
  */
 void Trajectory_ControlLoop(void)
 {
+     // ===================== 强制修复 =====================
+    // sys_state = STATE_RUNNING;  // 永远运行，无视状态机
+    // Odom_Update();             // 必须更新里程计
+    // ====================================================
+   
     Odom_Typedef *odom = Odom_GetInfo();
     float wheel_target_rpm[4];
     ChassisSpeed_Typedef target_speed;

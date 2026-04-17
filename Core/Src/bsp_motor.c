@@ -33,14 +33,14 @@ void Motor_SetPWM(uint8_t wheel_id, int32_t pwm)
         case WHEEL_LF: // 左前电机
             if(pwm >= 0)
             {
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_0, GPIO_PIN_SET);   // IN1=1
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, GPIO_PIN_RESET); // IN2=0
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_0, GPIO_PIN_RESET);   // IN1=1
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, GPIO_PIN_SET); // IN2=0
                 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm);
             }
             else
             {
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_0, GPIO_PIN_RESET); // IN1=0
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, GPIO_PIN_SET);   // IN2=1
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_0, GPIO_PIN_SET); // IN1=0
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_1, GPIO_PIN_RESET);   // IN2=1
                 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, -pwm);
             }
             break;
@@ -48,14 +48,14 @@ void Motor_SetPWM(uint8_t wheel_id, int32_t pwm)
         case WHEEL_RF: // 右前电机
             if(pwm >= 0)
             {
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2, GPIO_PIN_SET);   // IN1=1
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET); // IN2=0
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2, GPIO_PIN_RESET);   // IN1=1
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET); // IN2=0
                 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, pwm);
             }
             else
             {
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2, GPIO_PIN_RESET); // IN1=0
-                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);   // IN2=1
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_2, GPIO_PIN_SET); // IN1=0
+                HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);   // IN2=1
                 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, -pwm);
             }
             break;

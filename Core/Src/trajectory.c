@@ -105,7 +105,7 @@ void Trajectory_ControlLoop(void)
 {
      // ===================== 强制修复 =====================
     // sys_state = STATE_RUNNING;  // 永远运行，无视状态机
-    // Odom_Update();             // 必须更新里程计
+     Odom_Update();             // 必须更新里程计
     // ====================================================
    
     Odom_Typedef *odom = Odom_GetInfo();

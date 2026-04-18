@@ -42,38 +42,38 @@ void UART_SendSpeed(void)
     char tx_buf[128];  // 发送缓冲区，大小根据实际数据调整
     int len;            // 格式化后的字符串长度
 
-// 【临时测试】直接打印4个定时器的CNT寄存器值（不经过Encoder_GetCnt）
-    uint16_t tim2_cnt = __HAL_TIM_GET_COUNTER(&htim2); // LF
-    uint16_t tim3_cnt = __HAL_TIM_GET_COUNTER(&htim3); // RF
-    uint16_t tim4_cnt = __HAL_TIM_GET_COUNTER(&htim4); // LB
-    uint16_t tim5_cnt = __HAL_TIM_GET_COUNTER(&htim5); // RB
+// // 【临时测试】直接打印4个定时器的CNT寄存器值（不经过Encoder_GetCnt）
+//     uint16_t tim2_cnt = __HAL_TIM_GET_COUNTER(&htim2); // LF
+//     uint16_t tim3_cnt = __HAL_TIM_GET_COUNTER(&htim3); // RF
+//     uint16_t tim4_cnt = __HAL_TIM_GET_COUNTER(&htim4); // LB
+//     uint16_t tim5_cnt = __HAL_TIM_GET_COUNTER(&htim5); // RB
 
-    len = sprintf(tx_buf, "TIM_CNT[2:%d, 3:%d, 4:%d, 5:%d]\r\n",
-                  tim2_cnt, tim3_cnt, tim4_cnt, tim5_cnt);
+//     len = sprintf(tx_buf, "TIM_CNT[2:%d, 3:%d, 4:%d, 5:%d]\r\n",
+//                   tim2_cnt, tim3_cnt, tim4_cnt, tim5_cnt);
+//     HAL_UART_Transmit(&huart6, (uint8_t *)tx_buf, len, 10);
+    // 1. 获取4个轮子的转速（RPM）
+    float wheel_rpm[4];
+    wheel_rpm[WHEEL_LF] = Encoder_GetRPM(WHEEL_LF);
+    wheel_rpm[WHEEL_RF] = Encoder_GetRPM(WHEEL_RF);
+    wheel_rpm[WHEEL_LB] = Encoder_GetRPM(WHEEL_LB);
+    wheel_rpm[WHEEL_RB] = Encoder_GetRPM(WHEEL_RB);
+
+    // 2. 获取底盘当前速度（vx, vy, omega）
+    float wheel_rad_s[4];
+    ChassisSpeed_Typedef chassis_speed;
+    Encoder_GetRadS(wheel_rad_s);
+    Mecanum_PositiveCalc(wheel_rad_s, &chassis_speed);
+
+    // 3. 用sprintf将数据格式化为字符串（不使用printf）
+    // 格式说明：%.1f保留1位小数，%.2f保留2位小数
+    len = sprintf(tx_buf, 
+                  "WHEEL[LF:%.1f, RF:%.1f, LB:%.1f, RB:%.1f] | CHASSIS[vx:%.2f, vy:%.2f, omega:%.2f]\r\n",
+                  wheel_rpm[WHEEL_LF], wheel_rpm[WHEEL_RF], wheel_rpm[WHEEL_LB], wheel_rpm[WHEEL_RB],
+                  chassis_speed.vx, chassis_speed.vy, chassis_speed.omega);
+
+    // 4. 直接调用HAL库底层函数发送字符串
+    // 参数说明：串口句柄、数据指针、数据长度、超时时间(ms)
     HAL_UART_Transmit(&huart6, (uint8_t *)tx_buf, len, 10);
-    // // 1. 获取4个轮子的转速（RPM）
-    // float wheel_rpm[4];
-    // wheel_rpm[WHEEL_LF] = Encoder_GetRPM(WHEEL_LF);
-    // wheel_rpm[WHEEL_RF] = Encoder_GetRPM(WHEEL_RF);
-    // wheel_rpm[WHEEL_LB] = Encoder_GetRPM(WHEEL_LB);
-    // wheel_rpm[WHEEL_RB] = Encoder_GetRPM(WHEEL_RB);
-
-    // // 2. 获取底盘当前速度（vx, vy, omega）
-    // float wheel_rad_s[4];
-    // ChassisSpeed_Typedef chassis_speed;
-    // Encoder_GetRadS(wheel_rad_s);
-    // Mecanum_PositiveCalc(wheel_rad_s, &chassis_speed);
-
-    // // 3. 用sprintf将数据格式化为字符串（不使用printf）
-    // // 格式说明：%.1f保留1位小数，%.2f保留2位小数
-    // len = sprintf(tx_buf, 
-    //               "WHEEL[LF:%.1f, RF:%.1f, LB:%.1f, RB:%.1f] | CHASSIS[vx:%.2f, vy:%.2f, omega:%.2f]\r\n",
-    //               wheel_rpm[WHEEL_LF], wheel_rpm[WHEEL_RF], wheel_rpm[WHEEL_LB], wheel_rpm[WHEEL_RB],
-    //               chassis_speed.vx, chassis_speed.vy, chassis_speed.omega);
-
-    // // 4. 直接调用HAL库底层函数发送字符串
-    // // 参数说明：串口句柄、数据指针、数据长度、超时时间(ms)
-    // HAL_UART_Transmit(&huart6, (uint8_t *)tx_buf, len, 10);
 }
 /* USER CODE END PTD */
 
@@ -191,7 +191,7 @@ int main(void)
     {
         case KEY_START:
             // 启动：设置目标坐标(2m, 0m)，可修改为任意坐标
-            Trajectory_SetTarget(0.5f, 0.0f);
+            Trajectory_SetTarget(1.0f, 0.0f);
             sprintf((char*)uart_buf, "Start! Target: (%.2fm, %.2fm)\r\n", 0.5f, 0.0f);  
             HAL_UART_Transmit(&huart6, uart_buf, strlen((char*)uart_buf), 100);
             break;

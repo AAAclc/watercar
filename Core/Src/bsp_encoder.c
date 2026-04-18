@@ -84,10 +84,10 @@ int32_t Encoder_GetCnt(uint8_t wheel_id)
     {
         case WHEEL_LF: 
             cnt = encoder_total[WHEEL_LF] + __HAL_TIM_GET_COUNTER(&htim2);
-            return -cnt; // 左前计数取反
+            return cnt; 
         case WHEEL_RF: 
             cnt = encoder_total[WHEEL_RF] + __HAL_TIM_GET_COUNTER(&htim3);
-            return -cnt; // 右前计数取反
+            return cnt; 
         case WHEEL_LB: 
             return encoder_total[WHEEL_LB] + __HAL_TIM_GET_COUNTER(&htim4);
         case WHEEL_RB: 

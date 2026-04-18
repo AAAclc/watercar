@@ -17,10 +17,10 @@ static IncPID_Typedef speed_pid[4];
 void Trajectory_Init(void)
 {
     // 位置环PID初始化（输出：m/s）
-    PosPID_Init(&x_pid, 5.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);
-    PosPID_Init(&y_pid, 5.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);  
+    PosPID_Init(&x_pid, 8.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);
+    PosPID_Init(&y_pid, 8.0f, 0.1f, 0.2f, MAX_VEL, MAX_VEL, -MAX_VEL);  
     // 航向环PID初始化（输出：rad/s）
-    PosPID_Init(&theta_pid, 5.0f, 0.0f, 0.1f, MAX_OMEGA, MAX_OMEGA, -MAX_OMEGA);
+    PosPID_Init(&theta_pid, 8.0f, 0.0f, 0.1f, MAX_OMEGA, MAX_OMEGA, -MAX_OMEGA);
     // 速度环PID初始化（输出：PWM值）
     for(uint8_t i=0; i<4; i++)
     {
@@ -52,7 +52,7 @@ static float Speed_Plan(float distance)
         target_vel = sqrtf(2 * DECEL_MAX * distance);
     }
     // 最小速度限制
-    if(target_vel < 0.05f && distance > ARRIVE_DIS) target_vel = 0.05f;
+    if(target_vel < 0.03f && distance > ARRIVE_DIS) target_vel = 0.03f;
     return target_vel;
 }
 
@@ -64,8 +64,8 @@ static float Speed_Plan(float distance)
 void Trajectory_SetTarget(float tx, float ty)
 {
     // 更新目标坐标
-    target_x = tx;
-    target_y = ty;
+    target_x = tx*1.3f;//这里要做误差处理
+    target_y = ty*1.195f;//一样
     // 复位PID积分
     PID_Reset(NULL, &x_pid);
     PID_Reset(NULL, &y_pid);
@@ -107,7 +107,15 @@ void Trajectory_ControlLoop(void)
     // sys_state = STATE_RUNNING;  // 永远运行，无视状态机
      Odom_Update();             // 必须更新里程计
     // ====================================================
-   
+   // ====== 临时调试：用LED看状态机 ======
+    if(sys_state == STATE_IDLE) {
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9, GPIO_PIN_SET);   // LED0亮 = 空闲
+       
+    } else if(sys_state == STATE_RUNNING) {
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9, GPIO_PIN_RESET);     // LED0灭
+       
+    }
+    // =======================================
     Odom_Typedef *odom = Odom_GetInfo();
     float wheel_target_rpm[4];
     ChassisSpeed_Typedef target_speed;
@@ -125,6 +133,12 @@ void Trajectory_ControlLoop(void)
     {
         sys_state = STATE_ARRIVED;
         Motor_StopAll();
+        // ========= 新增：到达后强制清零PID积分，防止疯转 =========
+    PID_Reset(NULL, &x_pid);
+    PID_Reset(NULL, &y_pid);
+    PID_Reset(NULL, &theta_pid);
+    for(uint8_t i=0; i<4; i++) PID_Reset(&speed_pid[i], NULL);
+    // ======================================================
         return;
     }
 
@@ -166,7 +180,10 @@ void Trajectory_ControlLoop(void)
         speed_pid[i].current = Encoder_GetRPM(i);
         IncPID_Calc(&speed_pid[i]);
         Motor_SetPWM(i, (int32_t)speed_pid[i].output);
-    }
+      
+   
+}
+    
 }
 
 /**

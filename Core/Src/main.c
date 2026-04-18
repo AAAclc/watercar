@@ -178,7 +178,8 @@ int main(void)
    
         UART_SendSpeed();
         // 轨迹控制主循环（核心，实现定点直达）
-        Trajectory_ControlLoop(); 
+         Trajectory_ControlLoop(); 
+        
            // ==================== 串口打印调试信息 ====================
   //  sprintf((char*)uart_buf, "X:%.3f Y:%.3f Theta:%.2f State:%d\r\n",
   //          odom_info->x, odom_info->y, odom_info->theta, Trajectory_GetState());
@@ -191,8 +192,8 @@ int main(void)
     {
         case KEY_START:
             // 启动：设置目标坐标(2m, 0m)，可修改为任意坐标
-            Trajectory_SetTarget(1.0f, 0.0f);
-            sprintf((char*)uart_buf, "Start! Target: (%.2fm, %.2fm)\r\n", 0.5f, 0.0f);  
+            Trajectory_SetTarget(0.8f, 0.8f);//函数内做了误差处理，所以这里直接传实际值即可
+            sprintf((char*)uart_buf, "Start! Target: (%.2fm, %.2fm)\r\n", 0.8f, 0.8f);    
             HAL_UART_Transmit(&huart6, uart_buf, strlen((char*)uart_buf), 100);
             break;
 

@@ -24,6 +24,8 @@ typedef enum
 // 对外接口声明
 void Trajectory_Init(void);
 void Trajectory_SetTarget(float tx, float ty);
+void Trajectory_SetTargetWithYaw(float tx, float ty, float theta);
+void Trajectory_SetYaw(float theta);
 void Trajectory_Stop(void);
 void Trajectory_ResetOrigin(void);
 void Trajectory_ControlLoop(void);

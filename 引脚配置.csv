@@ -14,3 +14,4 @@ PWM调速输出,左前电机PWM,PE9,TIM1_CH1,
 调试串口,串口TX、RX,PA9、PA10,USART1 异步串口,
 OLED显示屏,I2C_SCL、I2C_SDA,PB6、PB7,I2C1 主机模式,
 按键输入,启动按键、原点复位,PC0、PC1,GPIO上拉输入
+PC10 PC11是绿灯和红灯的线

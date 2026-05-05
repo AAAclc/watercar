@@ -1,12 +1,15 @@
 #include "trajectory.h"
 #include "bsp_motor.h"
 #include "bsp_encoder.h"
+#include "usart.h"
 #include "math.h"
+#include "stdio.h"
 
 // 系统状态
 static SysState_Typedef sys_state = STATE_IDLE;
 // 目标坐标
 static float target_x = 0.0f, target_y = 0.0f;
+static float target_theta = 0.0f;  // 目标航向角，默认朝正前方
 // PID控制器
 static PosPID_Typedef x_pid, y_pid, theta_pid;
 static IncPID_Typedef speed_pid[4];
@@ -76,6 +79,27 @@ void Trajectory_SetTarget(float tx, float ty)
 }
 
 /**
+ * @brief  单独设置目标航向角
+ * @param  theta: 目标航向角，单位rad，正值=逆时针
+ */
+void Trajectory_SetYaw(float theta)
+{
+    target_theta = theta;
+    PID_Reset(NULL, &theta_pid);
+}
+
+/**
+ * @brief  设置目标坐标及航向角
+ * @param  tx, ty: 目标坐标，单位m
+ * @param  theta: 目标航向角，单位rad
+ */
+void Trajectory_SetTargetWithYaw(float tx, float ty, float theta)
+{
+    Trajectory_SetTarget(tx, ty);
+    target_theta = theta;
+}
+
+/**
  * @brief  停止运动
  */
 void Trajectory_Stop(void)
@@ -103,25 +127,21 @@ void Trajectory_ResetOrigin(void)
  */
 void Trajectory_ControlLoop(void)
 {
-     // ===================== 强制修复 =====================
-    // sys_state = STATE_RUNNING;  // 永远运行，无视状态机
-     Odom_Update();             // 必须更新里程计
-    // ====================================================
-   // ====== 临时调试：用LED看状态机 ======
+    // LED 调试指示
     if(sys_state == STATE_IDLE) {
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9, GPIO_PIN_SET);   // LED0亮 = 空闲
-       
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9, GPIO_PIN_SET);    // LED0亮 = 空闲
     } else if(sys_state == STATE_RUNNING) {
-        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9, GPIO_PIN_RESET);     // LED0灭
-       
+        HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9, GPIO_PIN_RESET);  // LED0灭 = 运行
     }
-    // =======================================
+
+    // 空闲/到达状态：不更新里程计，不执行控制
+    if(sys_state == STATE_IDLE || sys_state == STATE_ARRIVED) return;
+
+    // 里程计更新（仅运行状态）
+    Odom_Update();
     Odom_Typedef *odom = Odom_GetInfo();
     float wheel_target_rpm[4];
     ChassisSpeed_Typedef target_speed;
-
-    // 空闲/到达状态：不执行控制
-    if(sys_state == STATE_IDLE || sys_state == STATE_ARRIVED) return;
 
     // 1. 计算当前与目标点的偏差
     float err_x = target_x - odom->x;
@@ -133,12 +153,11 @@ void Trajectory_ControlLoop(void)
     {
         sys_state = STATE_ARRIVED;
         Motor_StopAll();
-        // ========= 新增：到达后强制清零PID积分，防止疯转 =========
-    PID_Reset(NULL, &x_pid);
-    PID_Reset(NULL, &y_pid);
-    PID_Reset(NULL, &theta_pid);
-    for(uint8_t i=0; i<4; i++) PID_Reset(&speed_pid[i], NULL);
-    // ======================================================
+        PID_Reset(NULL, &x_pid);
+        PID_Reset(NULL, &y_pid);
+        PID_Reset(NULL, &theta_pid);
+        for(uint8_t i=0; i<4; i++) PID_Reset(&speed_pid[i], NULL);
+        HAL_UART_Transmit(&huart6, (uint8_t*)"D", 1, 10);  // 通知上位机：已到达
         return;
     }
 
@@ -154,8 +173,8 @@ void Trajectory_ControlLoop(void)
     y_pid.current = odom->y;
     PosPID_Calc(&y_pid);
 
-    // 航向环PID：保持车头朝前（theta=0）
-    theta_pid.target = 0.0f;
+    // 航向环PID
+    theta_pid.target = target_theta;
     theta_pid.current = odom->theta;
     PosPID_Calc(&theta_pid);
 

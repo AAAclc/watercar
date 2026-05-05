@@ -13,6 +13,9 @@ extern TIM_HandleTypeDef htim5;
 static int32_t encoder_total[4] = {0};
 // 上一次的编码器计数（用于测速）
 static int32_t encoder_last[4] = {0};
+// 缓存本周期采集到的转速（只由 Encoder_UpdateAll 写入）
+static float encoder_rpm_cache[4] = {0};
+static float encoder_rads_cache[4] = {0};
 
 /**
  * @brief  编码器初始化（启动编码器模式+更新中断）
@@ -96,32 +99,36 @@ int32_t Encoder_GetCnt(uint8_t wheel_id)
     }
 }
 /**
- * @brief  获取轮子转速rpm
+ * @brief  采集所有编码器（每个控制周期调用一次）
+ */
+void Encoder_UpdateAll(void)
+{
+    for(uint8_t i = 0; i < 4; i++)
+    {
+        int32_t cnt_now = Encoder_GetCnt(i);
+        int32_t cnt_diff = cnt_now - encoder_last[i];
+        encoder_last[i] = cnt_now;
+        encoder_rpm_cache[i] = (cnt_diff * 60.0f) / (PPR * CONTROL_DT);
+        encoder_rads_cache[i] = (cnt_diff * 2 * PI) / (PPR * CONTROL_DT);
+    }
+}
+
+/**
+ * @brief  获取轮子转速rpm（返回 Encoder_UpdateAll 缓存的值）
  * @param  wheel_id: 轮子编号
  * @retval 转速，单位rpm
  */
 float Encoder_GetRPM(uint8_t wheel_id)
 {
-    int32_t cnt_now = Encoder_GetCnt(wheel_id);
-    int32_t cnt_diff = cnt_now - encoder_last[wheel_id];
-    encoder_last[wheel_id] = cnt_now;
-    // 计算rpm：(脉冲差/单圈总脉冲数) * 60s / 控制周期
-    return (cnt_diff * 60.0f) / (PPR * CONTROL_DT);
+    return encoder_rpm_cache[wheel_id];
 }
 
 /**
- * @brief  获取轮子角速度rad/s
+ * @brief  获取轮子角速度rad/s（返回 Encoder_UpdateAll 缓存的值）
  * @param  wheel_rad_s: 输出4个轮子的角速度数组
  */
 void Encoder_GetRadS(float *wheel_rad_s)
 {
-    int32_t cnt_now[4], cnt_diff[4];
-    for(uint8_t i=0; i<4; i++)
-    {
-        cnt_now[i] = Encoder_GetCnt(i);
-        cnt_diff[i] = cnt_now[i] - encoder_last[i];
-        encoder_last[i] = cnt_now[i];
-        // 计算rad/s：(脉冲差/单圈总脉冲数) * 2π / 控制周期
-        wheel_rad_s[i] = (cnt_diff[i] * 2 * PI) / (PPR * CONTROL_DT);
-    }
+    for(uint8_t i = 0; i < 4; i++)
+        wheel_rad_s[i] = encoder_rads_cache[i];
 }

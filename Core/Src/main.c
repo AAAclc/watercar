@@ -18,6 +18,9 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32f407xx.h"
+#include "stm32f4xx_hal.h"
+#include "stm32f4xx_hal_uart.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -31,6 +34,7 @@
 #include "mecanum.h"
 #include "odom.h"
 #include "trajectory.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h> 
 /* USER CODE END Includes */
@@ -73,13 +77,84 @@ void UART_SendSpeed(void)
 
     // 4. 直接调用HAL库底层函数发送字符串
     // 参数说明：串口句柄、数据指针、数据长度、超时时间(ms)
-    HAL_UART_Transmit(&huart6, (uint8_t *)tx_buf, len, 10);
+   // HAL_UART_Transmit(&huart6, (uint8_t *)tx_buf, len, 10);
+}
+/* ========== UART 接收（轮询+帧同步）========== */
+#define UART_RX_BUF_SIZE 6          // 接收缓冲区大小
+#define UART_SYNC1      0xAA
+#define UART_CMD_POS    0x55        // 位置指令: AA 55 XH XL YH YL
+#define UART_CMD_YAW    0x56        // 航向指令: AA 56 TH TL
+#define UART_TIMEOUT_MS 100         // 帧超时：100ms 内没收完就丢弃
+
+static uint8_t  uart_rx_buf[UART_RX_BUF_SIZE];
+static uint8_t  uart_rx_idx = 0;
+static uint8_t  uart_rx_cmd = 0;    // 当前帧的指令类型
+static uint8_t  uart_rx_len = 0;    // 当前帧的期望总长度
+static uint32_t uart_rx_tick = 0;
+
+void Process_UART_Command(void)
+{
+    uint8_t byte;
+    while (HAL_UART_Receive(&huart6, &byte, 1, 0) == HAL_OK)
+    {
+        switch (uart_rx_idx)
+        {
+        case 0:  // 等待帧头 AA
+            if (byte == UART_SYNC1) {
+                uart_rx_buf[0] = byte;
+                uart_rx_idx = 1;
+                uart_rx_tick = HAL_GetTick();
+            }
+            break;
+
+        case 1:  // 等待指令类型
+            uart_rx_buf[1] = byte;
+            if (byte == UART_CMD_POS) {
+                uart_rx_cmd = UART_CMD_POS;
+                uart_rx_len = 6;   // AA 55 + 4字节数据
+                uart_rx_idx = 2;
+            } else if (byte == UART_CMD_YAW) {
+                uart_rx_cmd = UART_CMD_YAW;
+                uart_rx_len = 4;   // AA 56 + 2字节数据
+                uart_rx_idx = 2;
+            } else {
+                uart_rx_idx = 0;   // 未知指令，丢弃
+            }
+            break;
+
+        default:  // 收数据字节
+            uart_rx_buf[uart_rx_idx++] = byte;
+            if (uart_rx_idx >= uart_rx_len) {
+                uart_rx_idx = 0;
+                if (uart_rx_cmd == UART_CMD_POS) {
+                    uint16_t x_raw = (uart_rx_buf[2] << 8) | uart_rx_buf[3];
+                    uint16_t y_raw = (uart_rx_buf[4] << 8) | uart_rx_buf[5];
+                    float tx = (float)x_raw / 1000.0f;
+                    float ty = (float)y_raw / 1000.0f;
+                    Trajectory_SetTarget(tx, ty);
+                    HAL_UART_Transmit(&huart6, (uint8_t*)"K", 1, 10);
+                } else if (uart_rx_cmd == UART_CMD_YAW) {
+                    int16_t theta_raw = (uart_rx_buf[2] << 8) | uart_rx_buf[3];
+                    float theta = (float)theta_raw / 1000.0f;   // mrad → rad
+                    Trajectory_SetYaw(theta);
+                    HAL_UART_Transmit(&huart6, (uint8_t*)"K", 1, 10);
+                }
+            }
+            break;
+        }
+    }
+
+    // 超时保护：超过 100ms 没收完一帧，丢弃半帧数据
+    if (uart_rx_idx > 0 && HAL_GetTick() - uart_rx_tick > UART_TIMEOUT_MS) {
+        uart_rx_idx = 0;
+    }
 }
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define UART_BUF_SIZE 128
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -106,6 +181,22 @@ void SystemClock_Config(void);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     Encoder_OverflowHandler(htim);
+    SysState_Typedef state = Trajectory_GetState();
+    if(state == STATE_IDLE)
+    {
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_SET);   // 绿灯亮
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11, GPIO_PIN_RESET); // 红灯灭
+    }
+    else if(state == STATE_RUNNING)
+    {
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_RESET); // 绿灯灭
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11, GPIO_PIN_SET);   // 红灯亮
+    }
+    else if(state == STATE_ARRIVED)
+    {
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_10, GPIO_PIN_SET);   // 绿灯亮
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11, GPIO_PIN_SET);   // 红灯亮（双灯亮=已到达）
+    }
 }
 /* USER CODE END 0 */
 
@@ -149,7 +240,6 @@ int main(void)
   Motor_Init();         // 电机初始化
   Encoder_Init();       // 编码器初始化
   Key_Init();           // 按键初始化
- 
   Odom_Init();          // 里程计初始化
   Trajectory_Init();    // 轨迹控制初始化
 
@@ -157,7 +247,7 @@ int main(void)
   odom_info = Odom_GetInfo();
 
 
-  HAL_UART_Transmit(&huart6, (uint8_t *)"Init Success!\r\n", 16, 0xFFFF);
+  //HAL_UART_Transmit(&huart6, (uint8_t *)"Init Success!\r\n", 16, 0xFFFF);
 
 
   // 开机显示
@@ -170,15 +260,16 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
-  {// ==================== 10ms固定周期控制（核心）====================
+  {// ==================== 10ms固定周期控制（主循环）====================
     if(HAL_GetTick() - last_tick >= 10)
     {
         last_tick = HAL_GetTick();
 
    
+        Process_UART_Command();      // 持续接收上位机指令
+        Encoder_UpdateAll();        // 每周期只采集一次编码器
         UART_SendSpeed();
-        // 轨迹控制主循环（核心，实现定点直达）
-         Trajectory_ControlLoop(); 
+        Trajectory_ControlLoop();  // 轨迹控制主循环
         
            // ==================== 串口打印调试信息 ====================
   //  sprintf((char*)uart_buf, "X:%.3f Y:%.3f Theta:%.2f State:%d\r\n",
@@ -191,22 +282,19 @@ int main(void)
     switch(key)
     {
         case KEY_START:
-            // 启动：设置目标坐标(2m, 0m)，可修改为任意坐标
-            Trajectory_SetTarget(0.8f, 0.8f);//函数内做了误差处理，所以这里直接传实际值即可
-            sprintf((char*)uart_buf, "Start! Target: (%.2fm, %.2fm)\r\n", 0.8f, 0.8f);    
-            HAL_UART_Transmit(&huart6, uart_buf, strlen((char*)uart_buf), 100);
+            Trajectory_SetTarget(0.8f, 0.8f);
             break;
 
         case KEY_RESET:
             // 原点复位
             Trajectory_ResetOrigin();
-            HAL_UART_Transmit(&huart6, (uint8_t*)"Origin Reset!\r\n", 14, 100);
+            //HAL_UART_Transmit(&huart6, (uint8_t*)"Origin Reset!\r\n", 14, 100);
             break;
 
         case KEY_STOP:
             // 紧急停止
             Trajectory_Stop();
-            HAL_UART_Transmit(&huart6, (uint8_t*)"Stop!\r\n", 6, 100);
+            //HAL_UART_Transmit(&huart6, (uint8_t*)"Stop!\r\n", 6, 100);
             break;
     }
 
